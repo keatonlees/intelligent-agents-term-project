@@ -1,3 +1,5 @@
+import time
+
 from battle import Action, GridWorld
 from settings import DEFAULT_GRID_HEIGHT, DEFAULT_GRID_WIDTH
 
@@ -48,13 +50,13 @@ def _print_state_summary(state: dict) -> None:
 
 
 def run_testing_agent_demo() -> None:
-    """Run a short deterministic test agent demo against GridWorld."""
+    """Run a short test agent demo against GridWorld."""
     env = GridWorld(
         width=DEFAULT_GRID_WIDTH,
         height=DEFAULT_GRID_HEIGHT,
         max_steps=10,
         agent_ids=["a1", "a2"],
-        seed=7,
+        seed=time.time_ns(),
     )
 
     _print_step_header("INITIAL STATE")
