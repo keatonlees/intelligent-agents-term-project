@@ -1,7 +1,5 @@
-from __future__ import annotations
-
 import time
-from typing import Any, Dict, List, Type
+from typing import Dict, List, Type
 
 from battle import Action, GridWorld
 from agents.agent_random import AgentRandom
@@ -18,7 +16,7 @@ AGENT_REGISTRY: Dict[str, Type] = {
 SELECTED_AGENTS = [
     {"policy": "random", "agent_id": "a1", "display_char": "1"},
 ]
-DEMO_STEPS = 10
+DEMO_STEPS = 100
 
 
 def _format_actions(actions: dict[str, Action]) -> str:
