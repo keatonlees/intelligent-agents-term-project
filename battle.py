@@ -240,26 +240,42 @@ class GridWorld:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     def render_grid(self) -> str:
-        """Return a text-based grid for debugging."""
+        """Return an ASCII grid with coordinates and legend for debugging."""
         agent_by_pos = {agent.position: agent.id for agent in self.agents.values()}
-        lines: List[str] = []
+
+        def cell_symbol(x: int, y: int) -> str:
+            pos = (x, y)
+            if pos in agent_by_pos:
+                return "A"
+
+            cell = self.grid[y][x]
+            if cell == CellType.EMPTY:
+                return "."
+            if cell == CellType.FOOD:
+                return "F"
+            return "T"
+
+        cell_width = 2
+        header_cells = " ".join(f"{x:^{cell_width}}" for x in range(self.width)).rstrip()
+        header = "     " + header_cells
+        sample_row = " ".join(f"{'.':^{cell_width}}" for _ in range(self.width)).rstrip()
+        border = "   +" + "-" * (len(sample_row) + 2) + "+"
+        lines: List[str] = [header, border]
 
         for y in range(self.height - 1, -1, -1):
-            row_cells: List[str] = []
-            for x in range(self.width):
-                pos = (x, y)
-                if pos in agent_by_pos:
-                    row_cells.append("A")
-                else:
-                    cell = self.grid[y][x]
-                    if cell == CellType.EMPTY:
-                        row_cells.append(".")
-                    elif cell == CellType.FOOD:
-                        row_cells.append("F")
-                    else:
-                        row_cells.append("T")
-            lines.append(" ".join(row_cells))
+            row_cells = " ".join(
+                f"{cell_symbol(x, y):^{cell_width}}" for x in range(self.width)
+            ).rstrip()
+            lines.append(f"{y:>2} | {row_cells} |")
 
+        lines.append(border)
+
+        agent_entries = ", ".join(
+            f"{agent.id}@({agent.x},{agent.y}) H={agent.health} S={agent.score}"
+            for agent in self.agents.values()
+        )
+        lines.append("Legend: A=Agent F=Food T=Trap .=Empty")
+        lines.append(f"Agents: {agent_entries if agent_entries else 'None'}")
         return "\n".join(lines)
 
     def print_grid(self) -> None:

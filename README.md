@@ -49,7 +49,8 @@ Each step returns a state dictionary containing:
 
 - `battle.py`: environment implementation (`GridWorld`, `Agent`, enums, utilities)
 - `settings.py`: centralized simulation constants and defaults
-- `main.py`: minimal demo runner
+- `agent/testing_agent.py`: isolated testing/demo agent runner
+- `main.py`: thin entrypoint that invokes the testing agent demo
 
 ## Run
 
