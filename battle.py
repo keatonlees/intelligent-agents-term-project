@@ -83,6 +83,7 @@ class GridWorld:
         height: int = DEFAULT_GRID_HEIGHT,
         max_steps: int = DEFAULT_MAX_STEPS,
         agent_ids: Optional[List[str]] = None,
+        agent_display_chars: Optional[Dict[str, str]] = None,
         initial_food: int = DEFAULT_INITIAL_FOOD,
         initial_traps: int = DEFAULT_INITIAL_TRAPS,
         initial_health: int = DEFAULT_INITIAL_HEALTH,
@@ -98,6 +99,7 @@ class GridWorld:
         self._rng = random.Random(seed)
 
         self.agent_ids = agent_ids if agent_ids else list(DEFAULT_AGENT_IDS)
+        self.agent_display_chars = agent_display_chars or {}
         self.grid: List[List[CellType]] = []
         self.agents: Dict[str, Agent] = {}
         self.agent_positions: List[Position] = []
@@ -246,7 +248,8 @@ class GridWorld:
         def cell_symbol(x: int, y: int) -> str:
             pos = (x, y)
             if pos in agent_by_pos:
-                return "A"
+                agent_id = agent_by_pos[pos]
+                return self.agent_display_chars.get(agent_id, "A")
 
             cell = self.grid[y][x]
             if cell == CellType.EMPTY:
@@ -271,10 +274,11 @@ class GridWorld:
         lines.append(border)
 
         agent_entries = ", ".join(
-            f"{agent.id}@({agent.x},{agent.y}) H={agent.health} S={agent.score}"
+            f"{self.agent_display_chars.get(agent.id, 'A')}:{agent.id}@({agent.x},{agent.y}) "
+            f"H={agent.health} S={agent.score}"
             for agent in self.agents.values()
         )
-        lines.append("Legend: A=Agent F=Food T=Trap .=Empty")
+        lines.append("Legend: [agent-char]=Agent F=Food T=Trap .=Empty")
         lines.append(f"Agents: {agent_entries if agent_entries else 'None'}")
         return "\n".join(lines)
 

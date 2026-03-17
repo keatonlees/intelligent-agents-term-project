@@ -4,8 +4,10 @@ Minimal grid-world environment for agent simulation. This project currently impl
 
 ## Assumptions
 
-- Grid size defaults to 10x10.
+- Grid size defaults are defined in `settings.py`.
 - Multi-agent simulation is supported.
+- Each class in `agents/` represents one agent policy instance.
+- Multiple in-game agents are created by selecting multiple agent instances in `main.py`.
 - Agents are tracked separately from grid cells.
 - Cell types are: `EMPTY`, `FOOD`, `TRAP`.
 - Agent actions are: `UP`, `DOWN`, `LEFT`, `RIGHT`, `STAY`.
@@ -49,8 +51,16 @@ Each step returns a state dictionary containing:
 
 - `battle.py`: environment implementation (`GridWorld`, `Agent`, enums, utilities)
 - `settings.py`: centralized simulation constants and defaults
-- `agent/testing_agent.py`: isolated testing/demo agent runner
-- `main.py`: thin entrypoint that invokes the testing agent demo
+- `agents/agent_random.py`: single-agent random policy logic (uniform action selection)
+- `main.py`: simulation runner/orchestrator with selectable agent-instance array
+
+### Agent Selection
+
+`main.py` uses `SELECTED_AGENTS` to build in-game agent instances. Each entry supports:
+
+- `policy`: policy key in `AGENT_REGISTRY`
+- `agent_id`: unique in-environment ID
+- `display_char`: single character used on the rendered grid
 
 ## Run
 
