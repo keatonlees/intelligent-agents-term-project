@@ -42,7 +42,7 @@ class Action(Enum):
 
 @dataclass
 class Agent:
-    """Basic agent representation used by the environment."""
+    """Basic agent info the world keeps track of."""
 
     id: str
     x: int
@@ -52,16 +52,13 @@ class Agent:
 
     @property
     def position(self) -> Position:
-        """Return the current `(x, y)` position."""
         return (self.x, self.y)
 
     @position.setter
     def position(self, value: Position) -> None:
-        """Update the current `(x, y)` position."""
         self.x, self.y = value
 
     def to_dict(self) -> Dict[str, Any]:
-        """Serialize agent state for environment output."""
         return {
             "id": self.id,
             "position": {"x": self.x, "y": self.y},
@@ -71,7 +68,7 @@ class Agent:
 
 
 class GridWorld:
-    """Grid-world environment for movement, food collection, and traps."""
+    """Grid world where agents move, collect food, and hit traps."""
 
     FOOD_REWARD = FOOD_REWARD
     TRAP_DAMAGE = TRAP_DAMAGE
@@ -89,7 +86,6 @@ class GridWorld:
         initial_health: int = DEFAULT_INITIAL_HEALTH,
         seed: Optional[int] = None,
     ) -> None:
-        """Initialize environment configuration and create initial state."""
         self.width = width
         self.height = height
         self.max_steps = max_steps
@@ -108,7 +104,7 @@ class GridWorld:
         self.reset()
 
     def reset(self) -> Dict[str, Any]:
-        """Reset step count, clear grid, place agents, and spawn food/traps."""
+        """Start a fresh game."""
         self.grid = [
             [CellType.EMPTY for _ in range(self.width)] for _ in range(self.height)
         ]
@@ -135,9 +131,16 @@ class GridWorld:
         return self.get_state()
 
     def step(self, actions: Dict[str, Action | str]) -> Dict[str, Any]:
-        """Advance the simulation by one step using `agent_id -> action` inputs."""
+        """
+        Run one turn.
+
+        Important:
+        this now returns per-agent rewards so the learning agent
+        has something to learn from in main.py.
+        """
         self.step_count += 1
         events: List[Dict[str, Any]] = []
+        rewards: Dict[str, int] = {agent_id: 0 for agent_id in self.agents.keys()}
 
         current_positions = {
             agent_id: agent.position for agent_id, agent in self.agents.items()
@@ -151,12 +154,16 @@ class GridWorld:
         self._refresh_agent_positions()
 
         for agent_id, agent in self.agents.items():
+            # every move costs a little bit
             agent.score += self.STEP_PENALTY
+            rewards[agent_id] += self.STEP_PENALTY
+
             x, y = agent.position
             cell = self.get_cell(x, y)
 
             if cell == CellType.FOOD:
                 agent.score += self.FOOD_REWARD
+                rewards[agent_id] += self.FOOD_REWARD
                 self.set_cell(x, y, CellType.EMPTY)
                 self.spawn_food()
                 events.append(
@@ -170,6 +177,7 @@ class GridWorld:
 
             elif cell == CellType.TRAP:
                 agent.health -= self.TRAP_DAMAGE
+                rewards[agent_id] -= self.TRAP_DAMAGE
                 self.set_cell(x, y, CellType.EMPTY)
                 self.spawn_trap()
                 events.append(
@@ -181,12 +189,14 @@ class GridWorld:
                     }
                 )
 
-        done = self.step_count >= self.max_steps
+        # end if max steps reached or somebody dies
+        done = self.step_count >= self.max_steps or any(
+            agent.health <= 0 for agent in self.agents.values()
+        )
 
-        return self.get_state(events=events, done=done)
+        return self.get_state(events=events, done=done, rewards=rewards)
 
     def spawn_food(self) -> bool:
-        """Spawn one food item on a random empty cell."""
         pos = self._safe_random_empty_cell()
         if pos is None:
             return False
@@ -195,7 +205,6 @@ class GridWorld:
         return True
 
     def spawn_trap(self) -> bool:
-        """Spawn one trap item on a random empty cell."""
         pos = self._safe_random_empty_cell()
         if pos is None:
             return False
@@ -204,23 +213,20 @@ class GridWorld:
         return True
 
     def is_valid_position(self, x: int, y: int) -> bool:
-        """Return whether `(x, y)` is inside grid boundaries."""
         return 0 <= x < self.width and 0 <= y < self.height
 
     def get_cell(self, x: int, y: int) -> CellType:
-        """Get the cell type at `(x, y)`."""
         if not self.is_valid_position(x, y):
             raise ValueError(f"Invalid position: ({x}, {y})")
         return self.grid[y][x]
 
     def set_cell(self, x: int, y: int, cell_type: CellType) -> None:
-        """Set the cell type at `(x, y)` to `cell_type`."""
         if not self.is_valid_position(x, y):
             raise ValueError(f"Invalid position: ({x}, {y})")
         self.grid[y][x] = cell_type
 
     def random_empty_cell(self) -> Position:
-        """Return a random empty cell not occupied by any agent."""
+        """Pick an empty cell that is not already occupied by an agent."""
         empty_positions: List[Position] = []
         occupied = set(self.agent_positions)
 
@@ -238,11 +244,10 @@ class GridWorld:
 
     @staticmethod
     def manhattan_distance(a: Position, b: Position) -> int:
-        """Compute Manhattan distance between two positions."""
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
     def render_grid(self) -> str:
-        """Return an ASCII grid with coordinates and legend for debugging."""
+        """Simple text version of the grid for debugging."""
         agent_by_pos = {agent.position: agent.id for agent in self.agents.values()}
 
         def cell_symbol(x: int, y: int) -> str:
@@ -283,7 +288,6 @@ class GridWorld:
         return "\n".join(lines)
 
     def print_grid(self) -> None:
-        """Print a text-based grid for quick debugging."""
         print(self.render_grid())
 
     def get_state(
@@ -291,8 +295,9 @@ class GridWorld:
         *,
         events: Optional[List[Dict[str, Any]]] = None,
         done: bool = False,
+        rewards: Optional[Dict[str, int]] = None,
     ) -> Dict[str, Any]:
-        """Return environment state including positions, scores, and health."""
+        """Return the whole world state."""
         return {
             "step": self.step_count,
             "max_steps": self.max_steps,
@@ -302,22 +307,57 @@ class GridWorld:
                 {"id": agent_id, "x": agent.x, "y": agent.y}
                 for agent_id, agent in self.agents.items()
             ],
+            "food_positions": self._get_positions_by_cell_type(CellType.FOOD),
+            "trap_positions": self._get_positions_by_cell_type(CellType.TRAP),
             "events": events or [],
+            "rewards": rewards or {},
         }
 
+    def get_agent_view(self, agent_id: str, state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Give one agent a simpler view of the world.
+        This is the piece the Q-learning agent can use.
+        """
+        if state is None:
+            state = self.get_state()
+
+        me = self.agents[agent_id]
+
+        enemy_ids = [aid for aid in self.agents.keys() if aid != agent_id]
+        enemy_pos = None
+        if enemy_ids:
+            enemy = self.agents[enemy_ids[0]]
+            enemy_pos = [enemy.x, enemy.y]
+
+        return {
+            "self_pos": [me.x, me.y],
+            "self_health": me.health,
+            "self_score": me.score,
+            "enemy_pos": enemy_pos,
+            "food_positions": state["food_positions"],
+            "trap_positions": state["trap_positions"],
+            "step": state["step"],
+            "done": state["done"],
+        }
+
+    def _get_positions_by_cell_type(self, cell_type: CellType) -> List[List[int]]:
+        positions: List[List[int]] = []
+        for y in range(self.height):
+            for x in range(self.width):
+                if self.grid[y][x] == cell_type:
+                    positions.append([x, y])
+        return positions
+
     def _safe_random_empty_cell(self) -> Optional[Position]:
-        """Return random empty cell or `None` when no empty cell exists."""
         try:
             return self.random_empty_cell()
         except RuntimeError:
             return None
 
     def _refresh_agent_positions(self) -> None:
-        """Update cached list of agent positions."""
         self.agent_positions = [agent.position for agent in self.agents.values()]
 
     def _action_to_delta(self, action: Action | str) -> Position:
-        """Map an action to `(dx, dy)` movement delta."""
         normalized = action
         if isinstance(action, str):
             normalized = Action[action.upper()]
@@ -337,7 +377,6 @@ class GridWorld:
         actions: Dict[str, Action | str],
         current_positions: Dict[str, Position],
     ) -> Dict[str, Position]:
-        """Build proposed target positions for each agent."""
         proposed: Dict[str, Position] = {}
 
         for agent_id, current in current_positions.items():
@@ -357,7 +396,6 @@ class GridWorld:
         current_positions: Dict[str, Position],
         proposed_moves: Dict[str, Position],
     ) -> Dict[str, Position]:
-        """Resolve conflicts and return final agent positions."""
         targets: Dict[Position, List[str]] = {}
         for agent_id, target in proposed_moves.items():
             targets.setdefault(target, []).append(agent_id)
