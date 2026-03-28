@@ -322,23 +322,76 @@ class GridWorld:
             state = self.get_state()
 
         me = self.agents[agent_id]
+        my_pos = (me.x, me.y)
 
-        enemy_ids = [aid for aid in self.agents.keys() if aid != agent_id]
-        enemy_pos = None
-        if enemy_ids:
-            enemy = self.agents[enemy_ids[0]]
-            enemy_pos = [enemy.x, enemy.y]
+        enemy_positions = [
+            [agent.x, agent.y]
+            for aid, agent in self.agents.items()
+            if aid != agent_id
+        ]
+        nearest_enemy_pos, nearest_enemy_distance = self._nearest_target(
+            my_pos,
+            enemy_positions,
+        )
+
+        nearest_food_pos, nearest_food_distance = self._nearest_target(
+            my_pos,
+            state["food_positions"],
+        )
+        nearest_trap_pos, nearest_trap_distance = self._nearest_target(
+            my_pos,
+            state["trap_positions"],
+        )
 
         return {
             "self_pos": [me.x, me.y],
             "self_health": me.health,
             "self_score": me.score,
-            "enemy_pos": enemy_pos,
-            "food_positions": state["food_positions"],
-            "trap_positions": state["trap_positions"],
+            "nearest_enemy_direction": self._direction_to_target(my_pos, nearest_enemy_pos),
+            "nearest_enemy_distance": nearest_enemy_distance,
+            "nearest_food_direction": self._direction_to_target(my_pos, nearest_food_pos),
+            "nearest_food_distance": nearest_food_distance,
+            "nearest_trap_direction": self._direction_to_target(my_pos, nearest_trap_pos),
+            "nearest_trap_distance": nearest_trap_distance,
             "step": state["step"],
             "done": state["done"],
         }
+
+    def _nearest_target(
+        self,
+        origin: Position,
+        positions: List[List[int]],
+    ) -> Tuple[Optional[Position], Optional[int]]:
+        if not positions:
+            return None, None
+
+        targets = [(pos[0], pos[1]) for pos in positions]
+        nearest = min(
+            targets,
+            key=lambda target: (self.manhattan_distance(origin, target), target[1], target[0]),
+        )
+        return nearest, self.manhattan_distance(origin, nearest)
+
+    def _direction_to_target(
+        self,
+        origin: Position,
+        target: Optional[Position],
+    ) -> Optional[str]:
+        if target is None:
+            return None
+
+        dx = target[0] - origin[0]
+        dy = target[1] - origin[1]
+
+        if dx == 0 and dy == 0:
+            return Action.STAY.name
+
+        # If the target is diagonal, move along the axis with larger delta.
+        # Ties break horizontally for deterministic behavior.
+        if abs(dx) >= abs(dy):
+            return Action.RIGHT.name if dx > 0 else Action.LEFT.name
+
+        return Action.UP.name if dy > 0 else Action.DOWN.name
 
     def _get_positions_by_cell_type(self, cell_type: CellType) -> List[List[int]]:
         positions: List[List[int]] = []

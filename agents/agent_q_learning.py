@@ -26,10 +26,16 @@ class QLearningAgent:
     # turn the game state into something simple the agent can remember
     def get_state_key(self, state):
         my_pos = tuple(state["self_pos"])
-        enemy_pos = tuple(state["enemy_pos"])
+        enemy_dir = state.get("nearest_enemy_direction")
+        enemy_dist = state.get("nearest_enemy_distance")
 
-        # just use positions for now (keep it simple)
-        return str((my_pos, enemy_pos))
+        food_dir = state.get("nearest_food_direction")
+        food_dist = state.get("nearest_food_distance")
+        trap_dir = state.get("nearest_trap_direction")
+        trap_dist = state.get("nearest_trap_distance")
+
+        # include compact nearest-object features so learning does not depend on raw lists
+        return str((my_pos, enemy_dir, enemy_dist, food_dir, food_dist, trap_dir, trap_dist))
 
     # get Q value (or 0 if we haven't seen this state yet)
     def get_q(self, state_key, action):

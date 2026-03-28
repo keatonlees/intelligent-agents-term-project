@@ -105,7 +105,10 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
 
     for step_index in range(DEMO_STEPS):
         actions = {
-            agent.agent_id: agent.action_for_step(step_index, state)
+            agent.agent_id: agent.action_for_step(
+                step_index,
+                env.get_agent_view(agent.agent_id, state),
+            )
             for agent in agent_instances
         }
         _print_step_header(f"STEP {step_index + 1} | Actions: {_format_actions(actions)}")

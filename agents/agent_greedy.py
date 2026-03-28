@@ -10,71 +10,26 @@ class GreedyAgent:
     def choose_action(self, state):
         """
         This agent is simple:
-        - move toward the closest food
-        - avoid stepping on traps if possible
+        - move toward the nearest food direction
+        - avoid stepping toward a trap when it's adjacent
         """
 
-        my_x, my_y = state["self_pos"]
-        food_positions = state.get("food_positions", [])
-        trap_positions = state.get("trap_positions", [])
+        food_direction = state.get("nearest_food_direction")
+        food_distance = state.get("nearest_food_distance")
+        trap_direction = state.get("nearest_trap_direction")
+        trap_distance = state.get("nearest_trap_distance")
 
-        # If no food exists, just move randomly
-        if not food_positions:
+        # If no food exists, just move randomly.
+        if food_direction is None or food_distance is None:
             return random.choice(ACTIONS)
 
-        # Find the closest food using simple distance
-        closest_food = min(
-            food_positions,
-            key=lambda f: abs(f[0] - my_x) + abs(f[1] - my_y)
-        )
-
-        food_x, food_y = closest_food
-
-        # Decide preferred direction toward food
-        possible_moves = []
-
-        if food_x > my_x:
-            possible_moves.append("RIGHT")
-        elif food_x < my_x:
-            possible_moves.append("LEFT")
-
-        if food_y > my_y:
-            possible_moves.append("UP")
-        elif food_y < my_y:
-            possible_moves.append("DOWN")
-
-        # If already on food, just stay
-        if not possible_moves:
+        # If already on food, stay.
+        if food_distance == 0 or food_direction == "STAY":
             return "STAY"
 
-        # Avoid traps: filter out moves that lead to trap
-        safe_moves = []
+        # If a trap is one step away in the same direction, choose a safer move.
+        if trap_distance == 1 and trap_direction == food_direction:
+            alternatives = [a for a in ACTIONS if a not in (food_direction, "STAY")]
+            return random.choice(alternatives) if alternatives else "STAY"
 
-        for move in possible_moves:
-            next_pos = self.get_next_position(my_x, my_y, move)
-
-            if next_pos not in trap_positions:
-                safe_moves.append(move)
-
-        # If we found safe moves, use them
-        if safe_moves:
-            return random.choice(safe_moves)
-
-        # If all moves are risky, just pick one anyway
-        return random.choice(possible_moves)
-
-    def get_next_position(self, x, y, action):
-        """
-        Given a move, where would we end up?
-        """
-
-        if action == "UP":
-            return [x, y + 1]
-        if action == "DOWN":
-            return [x, y - 1]
-        if action == "LEFT":
-            return [x - 1, y]
-        if action == "RIGHT":
-            return [x + 1, y]
-
-        return [x, y]
+        return food_direction

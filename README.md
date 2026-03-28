@@ -47,6 +47,22 @@ Each step returns a state dictionary containing:
 - `agent_positions`
 - `events` (e.g., `food_collected`, `trap_triggered`)
 
+### Agent View (policy input)
+
+When `main.py` queries `get_agent_view(agent_id, state)`, each agent receives:
+
+- `self_pos`, `self_health`, `self_score`, `step`, `done`
+- `nearest_enemy_direction` and `nearest_enemy_distance`
+- `nearest_food_direction` and `nearest_food_distance`
+- `nearest_trap_direction` and `nearest_trap_distance`
+
+If no enemy exists, `nearest_enemy_direction` and `nearest_enemy_distance` are `None`.
+
+Direction selection uses Manhattan guidance:
+
+- Move along the larger axis delta toward the target.
+- If the target is perfectly diagonal (`|dx| == |dy|`), tie-break horizontally for deterministic behavior.
+
 ## Files
 
 - `battle.py`: environment implementation (`GridWorld`, `Agent`, enums, utilities)
