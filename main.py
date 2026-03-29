@@ -6,8 +6,10 @@ from agents.agent_greedy import GreedyAgent
 from agents.agent_q_learning import QLearningAgent
 from agents.agent_random import AgentRandom
 from settings import (
+    DEFAULT_SELECTED_AGENTS,
     DEFAULT_GRID_HEIGHT,
     DEFAULT_GRID_WIDTH,
+    DEMO_STEPS,
 )
 
 
@@ -17,11 +19,7 @@ AGENT_REGISTRY: Dict[str, Type[Any]] = {
     "q_learning": QLearningAgent,
 }
 
-SELECTED_AGENTS = [
-    {"policy": "q_learning", "agent_id": "q1", "display_char": "Q"},
-    {"policy": "greedy", "agent_id": "g1", "display_char": "G"},
-]
-DEMO_STEPS = 100
+SELECTED_AGENTS = list(DEFAULT_SELECTED_AGENTS)
 
 
 def _action_name(action: Action | str) -> str:
