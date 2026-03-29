@@ -1,13 +1,24 @@
 import json
 import random
 import os
+from typing import Any, Dict
 
 # simple actions list
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 
 
 class QLearningAgent:
-    def __init__(self, name="q_agent", alpha=0.1, gamma=0.9, epsilon=0.1):
+    policy_name = "agent_q_learning"
+
+    def __init__(
+        self,
+        agent_id: str,
+        name: str = "q_agent",
+        alpha: float = 0.1,
+        gamma: float = 0.9,
+        epsilon: float = 0.1,
+    ):
+        self.agent_id = agent_id
         self.name = name
 
         # learning settings
@@ -22,6 +33,10 @@ class QLearningAgent:
         if os.path.exists("q_table.json"):
             with open("q_table.json", "r") as f:
                 self.q_table = json.load(f)
+
+    def action_for_step(self, step_index: int, state: Dict[str, Any]) -> str:
+        del step_index
+        return self.choose_action(state)
 
     # turn the game state into something simple the agent can remember
     def get_state_key(self, state):

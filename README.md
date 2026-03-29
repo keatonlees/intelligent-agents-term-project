@@ -78,6 +78,9 @@ Direction selection uses Manhattan guidance:
 - `agent_id`: unique in-environment ID
 - `display_char`: single character used on the rendered grid
 
+Default setup runs one `q_learning` agent and one `greedy` agent together.
+Q-learning updates each step using environment rewards and saves learned values to `q_table.json` at the end of the run.
+
 ## Run
 
 ```bash

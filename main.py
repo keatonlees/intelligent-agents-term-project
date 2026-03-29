@@ -1,7 +1,9 @@
 import time
-from typing import Dict, List, Type
+from typing import Any, Dict, List, Type
 
 from battle import Action, GridWorld
+from agents.agent_greedy import GreedyAgent
+from agents.agent_q_learning import QLearningAgent
 from agents.agent_random import AgentRandom
 from settings import (
     DEFAULT_GRID_HEIGHT,
@@ -9,19 +11,30 @@ from settings import (
 )
 
 
-AGENT_REGISTRY: Dict[str, Type] = {
+AGENT_REGISTRY: Dict[str, Type[Any]] = {
     "random": AgentRandom,
+    "greedy": GreedyAgent,
+    "q_learning": QLearningAgent,
 }
 
 SELECTED_AGENTS = [
-    {"policy": "random", "agent_id": "a1", "display_char": "1"},
+    {"policy": "q_learning", "agent_id": "q1", "display_char": "Q"},
+    {"policy": "greedy", "agent_id": "g1", "display_char": "G"},
 ]
 DEMO_STEPS = 100
 
 
-def _format_actions(actions: dict[str, Action]) -> str:
+def _action_name(action: Action | str) -> str:
+    if isinstance(action, Action):
+        return action.name
+    return str(action).upper()
+
+
+def _format_actions(actions: dict[str, Action | str]) -> str:
     """Return a compact action string like `a1:RIGHT | a2:UP`."""
-    return " | ".join(f"{agent_id}:{action.name}" for agent_id, action in actions.items())
+    return " | ".join(
+        f"{agent_id}:{_action_name(action)}" for agent_id, action in actions.items()
+    )
 
 
 def _print_step_header(title: str) -> None:
@@ -104,19 +117,40 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
     _print_state_summary(state)
 
     for step_index in range(DEMO_STEPS):
+        views_before_step = {
+            agent.agent_id: env.get_agent_view(agent.agent_id, state)
+            for agent in agent_instances
+        }
         actions = {
             agent.agent_id: agent.action_for_step(
                 step_index,
-                env.get_agent_view(agent.agent_id, state),
+                views_before_step[agent.agent_id],
             )
             for agent in agent_instances
         }
+
         _print_step_header(f"STEP {step_index + 1} | Actions: {_format_actions(actions)}")
-        state = env.step(actions)
+        next_state = env.step(actions)
+
+        for agent in agent_instances:
+            if not hasattr(agent, "update"):
+                continue
+
+            reward = next_state.get("rewards", {}).get(agent.agent_id, 0)
+            previous_view = views_before_step[agent.agent_id]
+            next_view = env.get_agent_view(agent.agent_id, next_state)
+            action_name = _action_name(actions[agent.agent_id])
+            agent.update(previous_view, action_name, reward, next_view)
+
+        state = next_state
         env.print_grid()
         _print_state_summary(state)
         if state["done"]:
             break
+
+    for agent in agent_instances:
+        if hasattr(agent, "save"):
+            agent.save()
 
 
 def main() -> None:

@@ -1,11 +1,19 @@
 import random
+from typing import Any, Dict
 
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 
 
 class GreedyAgent:
-    def __init__(self, name="greedy_agent"):
+    policy_name = "agent_greedy"
+
+    def __init__(self, agent_id: str, name: str = "greedy_agent"):
+        self.agent_id = agent_id
         self.name = name
+
+    def action_for_step(self, step_index: int, state: Dict[str, Any]) -> str:
+        del step_index
+        return self.choose_action(state)
 
     def choose_action(self, state):
         """
