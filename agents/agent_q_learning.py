@@ -17,6 +17,8 @@ class QLearningAgent:
         alpha: float = 0.1,
         gamma: float = 0.9,
         epsilon: float = 0.1,
+        epsilon_min: float = 0.05,
+        epsilon_decay: float = 0.995,
     ):
         self.agent_id = agent_id
         self.name = name
@@ -25,6 +27,8 @@ class QLearningAgent:
         self.alpha = alpha      # how fast it learns
         self.gamma = gamma      # future reward importance
         self.epsilon = epsilon  # randomness (exploration)
+        self.epsilon_min = epsilon_min
+        self.epsilon_decay = epsilon_decay
 
         # where we store what it learns
         self.q_table = {}
@@ -68,7 +72,9 @@ class QLearningAgent:
 
         # exploit (pick best known move)
         q_values = self.q_table.get(state_key, {a: 0 for a in ACTIONS})
-        return max(q_values, key=q_values.get)
+        max_q = max(q_values.values())
+        best_actions = [action for action, value in q_values.items() if value == max_q]
+        return random.choice(best_actions)
 
     # update learning after each move
     def update(self, state, action, reward, next_state):
@@ -91,6 +97,7 @@ class QLearningAgent:
         new_q = current_q + self.alpha * (reward + self.gamma * max_future_q - current_q)
 
         self.q_table[state_key][action] = new_q
+        self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     # save learning to file
     def save(self):

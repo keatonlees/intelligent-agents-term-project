@@ -13,6 +13,10 @@ from settings import (
     DEFAULT_GRID_WIDTH,
     DEMO_STEPS,
     FRAME_DELAY_SECONDS,
+    MODE_PRESETS,
+    Q_FOOD_DISTANCE_REWARD_SCALE,
+    Q_TRAP_DISTANCE_REWARD_SCALE,
+    RUN_MODE,
 )
 
 
@@ -51,17 +55,51 @@ def _clear_terminal() -> None:
     print("\033[2J\033[H", end="")
 
 
-def _render_frame(title: str, env: GridWorld, state: dict) -> None:
+def _render_frame(
+    title: str,
+    env: GridWorld,
+    state: dict,
+    *,
+    show_frames: bool,
+    animate: bool,
+) -> None:
     """Render one frame of the simulation output."""
-    if ANIMATE_TERMINAL and CLEAR_SCREEN_EACH_FRAME:
+    if not show_frames:
+        return
+
+    if animate and CLEAR_SCREEN_EACH_FRAME:
         _clear_terminal()
 
     _print_step_header(title)
     env.print_grid()
     _print_state_summary(state)
 
-    if ANIMATE_TERMINAL:
+    if animate:
         time.sleep(FRAME_DELAY_SECONDS)
+
+
+def _distance_shaping_reward(previous_view: dict, next_view: dict) -> float:
+    """Reward moving toward food and away from traps using distance deltas."""
+
+    def _delta(key: str) -> int | None:
+        prev = previous_view.get(key)
+        nxt = next_view.get(key)
+        if prev is None or nxt is None:
+            return None
+        return prev - nxt
+
+    shaping = 0.0
+
+    food_delta = _delta("nearest_food_distance")
+    if food_delta is not None:
+        shaping += food_delta * Q_FOOD_DISTANCE_REWARD_SCALE
+
+    trap_delta = _delta("nearest_trap_distance")
+    if trap_delta is not None:
+        # Moving away from traps should be positive; toward traps should be negative.
+        shaping += (-trap_delta) * Q_TRAP_DISTANCE_REWARD_SCALE
+
+    return shaping
 
 
 def _print_state_summary(state: dict) -> None:
@@ -96,12 +134,18 @@ def _print_state_summary(state: dict) -> None:
         print("Events: none")
 
 
-def run_agents(selected_agents: List[Dict[str, str]]) -> None:
-    """Run one environment using the selected agent instances."""
+def _build_agent_instances(
+    selected_agents: List[Dict[str, Any]],
+    *,
+    q_epsilon_start: float,
+    q_epsilon_min: float,
+    q_epsilon_decay: float,
+) -> tuple[List[Any], Dict[str, str]]:
+    """Build and return policy instances and display character map."""
     if not selected_agents:
         raise ValueError("No agents selected.")
 
-    agent_instances = []
+    agent_instances: List[Any] = []
     display_chars: Dict[str, str] = {}
     for selection in selected_agents:
         policy_name = selection["policy"]
@@ -116,8 +160,31 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
                 f"Unknown policy '{policy_name}'. Available: {list(AGENT_REGISTRY)}"
             )
         policy_cls = AGENT_REGISTRY[policy_name]
-        agent_instances.append(policy_cls(agent_id=agent_id))
+        policy_kwargs: Dict[str, Any] = {}
+        if policy_name == "q_learning":
+            policy_kwargs = {
+                "epsilon": q_epsilon_start,
+                "epsilon_min": q_epsilon_min,
+                "epsilon_decay": q_epsilon_decay,
+            }
+        agent_instances.append(policy_cls(agent_id=agent_id, **policy_kwargs))
         display_chars[agent_id] = display_char
+
+    return agent_instances, display_chars
+
+
+def _run_episode(
+    *,
+    agent_instances: List[Any],
+    display_chars: Dict[str, str],
+    episode_index: int,
+    total_episodes: int,
+    enable_q_updates: bool,
+    enable_q_reward_shaping: bool,
+    show_frames: bool,
+    animate: bool,
+) -> Dict[str, Any]:
+    """Run one episode and return final environment state."""
 
     agent_ids = [agent.agent_id for agent in agent_instances]
     env = GridWorld(
@@ -130,8 +197,21 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
     )
 
     state = env.get_state()
-    _render_frame("AGENTS: " + ", ".join(agent_ids), env, state)
-    _render_frame("INITIAL STATE", env, state)
+    prefix = f"EP {episode_index}/{total_episodes} | "
+    _render_frame(
+        prefix + "AGENTS: " + ", ".join(agent_ids),
+        env,
+        state,
+        show_frames=show_frames,
+        animate=animate,
+    )
+    _render_frame(
+        prefix + "INITIAL STATE",
+        env,
+        state,
+        show_frames=show_frames,
+        animate=animate,
+    )
 
     for step_index in range(DEMO_STEPS):
         views_before_step = {
@@ -149,24 +229,85 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
         frame_title = f"STEP {step_index + 1} | Actions: {_format_actions(actions)}"
         next_state = env.step(actions)
 
-        for agent in agent_instances:
-            if not hasattr(agent, "update"):
-                continue
+        if enable_q_updates:
+            for agent in agent_instances:
+                if not hasattr(agent, "update"):
+                    continue
 
-            reward = next_state.get("rewards", {}).get(agent.agent_id, 0)
-            previous_view = views_before_step[agent.agent_id]
-            next_view = env.get_agent_view(agent.agent_id, next_state)
-            action_name = _action_name(actions[agent.agent_id])
-            agent.update(previous_view, action_name, reward, next_view)
+                previous_view = views_before_step[agent.agent_id]
+                next_view = env.get_agent_view(agent.agent_id, next_state)
+                reward = float(next_state.get("rewards", {}).get(agent.agent_id, 0))
+                if (
+                    enable_q_reward_shaping
+                    and getattr(agent, "policy_name", "") == "agent_q_learning"
+                ):
+                    reward += _distance_shaping_reward(previous_view, next_view)
+                action_name = _action_name(actions[agent.agent_id])
+                agent.update(previous_view, action_name, reward, next_view)
 
         state = next_state
-        _render_frame(frame_title, env, state)
+        _render_frame(
+            prefix + frame_title,
+            env,
+            state,
+            show_frames=show_frames,
+            animate=animate,
+        )
         if state["done"]:
             break
 
-    for agent in agent_instances:
-        if hasattr(agent, "save"):
-            agent.save()
+    scores = {
+        agent_id: data["score"] for agent_id, data in state.get("agents", {}).items()
+    }
+    print(
+        f"Episode {episode_index}/{total_episodes} finished | "
+        f"step={state['step']} done={state['done']} scores={scores}"
+    )
+
+    return state
+
+
+def run_agents(selected_agents: List[Dict[str, Any]]) -> None:
+    """Run train/eval workflow using the configured mode."""
+    mode = RUN_MODE.strip().lower()
+    if mode not in MODE_PRESETS:
+        raise ValueError(f"RUN_MODE must be one of: {sorted(MODE_PRESETS)}")
+
+    mode_config = MODE_PRESETS[mode]
+    episodes = int(mode_config["episodes"])
+    show_frames = bool(mode_config["show_frames"])
+    animate = ANIMATE_TERMINAL and bool(mode_config["animate_terminal"]) and show_frames
+    enable_q_updates = bool(mode_config["enable_q_updates"])
+    enable_q_reward_shaping = bool(mode_config["enable_q_reward_shaping"])
+
+    agent_instances, display_chars = _build_agent_instances(
+        selected_agents,
+        q_epsilon_start=float(mode_config["q_epsilon_start"]),
+        q_epsilon_min=float(mode_config["q_epsilon_min"]),
+        q_epsilon_decay=float(mode_config["q_epsilon_decay"]),
+    )
+
+    print(
+        f"Mode={mode} episodes={episodes} steps_per_episode={DEMO_STEPS} "
+        f"show_frames={show_frames} animate={animate}"
+    )
+
+    for episode_index in range(1, episodes + 1):
+        _run_episode(
+            agent_instances=agent_instances,
+            display_chars=display_chars,
+            episode_index=episode_index,
+            total_episodes=episodes,
+            enable_q_updates=enable_q_updates,
+            enable_q_reward_shaping=enable_q_reward_shaping,
+            show_frames=show_frames,
+            animate=animate,
+        )
+
+    if bool(mode_config["save_q_table"]):
+        for agent in agent_instances:
+            if hasattr(agent, "save"):
+                agent.save()
 
 
 def main() -> None:
