@@ -3,8 +3,8 @@
 DEFAULT_GRID_WIDTH = 10
 DEFAULT_GRID_HEIGHT = 10
 DEFAULT_MAX_STEPS = 200
-DEFAULT_INITIAL_FOOD = 3
-DEFAULT_INITIAL_TRAPS = 3
+DEFAULT_INITIAL_FOOD = 8
+DEFAULT_INITIAL_TRAPS = 4
 DEFAULT_INITIAL_HEALTH = 100
 DEFAULT_AGENT_IDS = ("agent_0",)
 
@@ -28,15 +28,19 @@ CLEAR_SCREEN_EACH_FRAME = True
 # Change only this variable for normal usage.
 RUN_MODE = "eval"  # valid values: "train", "eval"
 
+# Distance-based reward shaping for Q-learning
+Q_FOOD_DISTANCE_REWARD_SCALE = 0.3
+Q_TRAP_DISTANCE_REWARD_SCALE = 0.35
+
 # Presets that fully define behavior for each mode.
 MODE_PRESETS = {
 	"train": {
-		"episodes": 1000,
+		"episodes": 5000,
 		"show_frames": False,
 		"animate_terminal": False,
-		"q_epsilon_start": 0.35,
-		"q_epsilon_min": 0.05,
-		"q_epsilon_decay": 0.995,
+		"q_epsilon_start": 0.1,
+		"q_epsilon_min": 0.01,
+		"q_epsilon_decay": 0.999,
 		"enable_q_updates": True,
 		"save_q_table": True,
 		"enable_q_reward_shaping": True,
@@ -54,6 +58,3 @@ MODE_PRESETS = {
 	},
 }
 
-# Distance-based reward shaping for Q-learning
-Q_FOOD_DISTANCE_REWARD_SCALE = 0.4
-Q_TRAP_DISTANCE_REWARD_SCALE = 0.2
