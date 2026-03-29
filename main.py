@@ -6,10 +6,13 @@ from agents.agent_greedy import GreedyAgent
 from agents.agent_q_learning import QLearningAgent
 from agents.agent_random import AgentRandom
 from settings import (
+    ANIMATE_TERMINAL,
+    CLEAR_SCREEN_EACH_FRAME,
     DEFAULT_SELECTED_AGENTS,
     DEFAULT_GRID_HEIGHT,
     DEFAULT_GRID_WIDTH,
     DEMO_STEPS,
+    FRAME_DELAY_SECONDS,
 )
 
 
@@ -41,6 +44,24 @@ def _print_step_header(title: str) -> None:
     print("\n" + "=" * width)
     print(title.center(width))
     print("=" * width)
+
+
+def _clear_terminal() -> None:
+    """Clear the terminal and reset cursor to top-left."""
+    print("\033[2J\033[H", end="")
+
+
+def _render_frame(title: str, env: GridWorld, state: dict) -> None:
+    """Render one frame of the simulation output."""
+    if ANIMATE_TERMINAL and CLEAR_SCREEN_EACH_FRAME:
+        _clear_terminal()
+
+    _print_step_header(title)
+    env.print_grid()
+    _print_state_summary(state)
+
+    if ANIMATE_TERMINAL:
+        time.sleep(FRAME_DELAY_SECONDS)
 
 
 def _print_state_summary(state: dict) -> None:
@@ -108,11 +129,9 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
         seed=time.time_ns(),
     )
 
-    _print_step_header("AGENTS: " + ", ".join(agent_ids))
-    _print_step_header("INITIAL STATE")
-    env.print_grid()
     state = env.get_state()
-    _print_state_summary(state)
+    _render_frame("AGENTS: " + ", ".join(agent_ids), env, state)
+    _render_frame("INITIAL STATE", env, state)
 
     for step_index in range(DEMO_STEPS):
         views_before_step = {
@@ -127,7 +146,7 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
             for agent in agent_instances
         }
 
-        _print_step_header(f"STEP {step_index + 1} | Actions: {_format_actions(actions)}")
+        frame_title = f"STEP {step_index + 1} | Actions: {_format_actions(actions)}"
         next_state = env.step(actions)
 
         for agent in agent_instances:
@@ -141,8 +160,7 @@ def run_agents(selected_agents: List[Dict[str, str]]) -> None:
             agent.update(previous_view, action_name, reward, next_view)
 
         state = next_state
-        env.print_grid()
-        _print_state_summary(state)
+        _render_frame(frame_title, env, state)
         if state["done"]:
             break
 

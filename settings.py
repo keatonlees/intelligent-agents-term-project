@@ -18,3 +18,8 @@ DEFAULT_SELECTED_AGENTS = (
 	{"policy": "q_learning", "agent_id": "q1", "display_char": "Q"},
 	{"policy": "greedy", "agent_id": "g1", "display_char": "G"},
 )
+
+# Terminal animation configuration
+ANIMATE_TERMINAL = True
+FRAME_DELAY_SECONDS = 0.15
+CLEAR_SCREEN_EACH_FRAME = True
