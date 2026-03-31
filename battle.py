@@ -22,17 +22,15 @@ from settings import (
 Position = Tuple[int, int]
 
 
+# what each cell in the grid contains
 class CellType(Enum):
-    """Types of cells in the grid."""
-
     EMPTY = 0
     FOOD = 1
     TRAP = 2
 
 
+# the available actions for agents to take
 class Action(Enum):
-    """Actions an agent can take each step."""
-
     UP = "UP"
     DOWN = "DOWN"
     LEFT = "LEFT"
@@ -40,10 +38,9 @@ class Action(Enum):
     STAY = "STAY"
 
 
+# the agent state we track in the environment
 @dataclass
 class Agent:
-    """Basic agent info the world keeps track of."""
-
     id: str
     x: int
     y: int
@@ -67,9 +64,8 @@ class Agent:
         }
 
 
+# the main environment class that simulates the grid world and agent interactions
 class GridWorld:
-    """Grid world where agents move, collect food, and hit traps."""
-
     FOOD_REWARD = FOOD_REWARD
     TRAP_DAMAGE = TRAP_DAMAGE
     STEP_PENALTY = STEP_PENALTY
@@ -103,8 +99,8 @@ class GridWorld:
 
         self.reset()
 
+    # the main method to reset the environment to a fresh state
     def reset(self) -> Dict[str, Any]:
-        """Start a fresh game."""
         self.grid = [
             [CellType.EMPTY for _ in range(self.width)] for _ in range(self.height)
         ]
@@ -121,7 +117,7 @@ class GridWorld:
                 score=0,
             )
 
-        self._refresh_agent_positions()
+        self.refresh_agent_positions()
 
         for _ in range(self.initial_food):
             self.spawn_food()
@@ -130,14 +126,8 @@ class GridWorld:
 
         return self.get_state()
 
+    # run one turn of the environment
     def step(self, actions: Dict[str, Action | str]) -> Dict[str, Any]:
-        """
-        Run one turn.
-
-        Important:
-        this now returns per-agent rewards so the learning agent
-        has something to learn from in main.py.
-        """
         self.step_count += 1
         events: List[Dict[str, Any]] = []
         rewards: Dict[str, int] = {agent_id: 0 for agent_id in self.agents.keys()}
@@ -145,13 +135,13 @@ class GridWorld:
         current_positions = {
             agent_id: agent.position for agent_id, agent in self.agents.items()
         }
-        proposed_moves = self._propose_moves(actions, current_positions)
-        resolved_positions = self._resolve_moves(current_positions, proposed_moves)
+        proposed_moves = self.propose_moves(actions, current_positions)
+        resolved_positions = self.resolve_moves(current_positions, proposed_moves)
 
         for agent_id, new_pos in resolved_positions.items():
             self.agents[agent_id].position = new_pos
 
-        self._refresh_agent_positions()
+        self.refresh_agent_positions()
 
         for agent_id, agent in self.agents.items():
             # every move costs a little bit
@@ -196,37 +186,42 @@ class GridWorld:
 
         return self.get_state(events=events, done=done, rewards=rewards)
 
+    # helper method to spawn food
     def spawn_food(self) -> bool:
-        pos = self._safe_random_empty_cell()
+        pos = self.safe_random_empty_cell()
         if pos is None:
             return False
         x, y = pos
         self.set_cell(x, y, CellType.FOOD)
         return True
 
+    # helper method to spawn traps
     def spawn_trap(self) -> bool:
-        pos = self._safe_random_empty_cell()
+        pos = self.safe_random_empty_cell()
         if pos is None:
             return False
         x, y = pos
         self.set_cell(x, y, CellType.TRAP)
         return True
 
+    # helper method to check if a position is within the grid bounds
     def is_valid_position(self, x: int, y: int) -> bool:
         return 0 <= x < self.width and 0 <= y < self.height
 
+    # helper methods to get cell
     def get_cell(self, x: int, y: int) -> CellType:
         if not self.is_valid_position(x, y):
             raise ValueError(f"Invalid position: ({x}, {y})")
         return self.grid[y][x]
 
+    # helper method to set cell
     def set_cell(self, x: int, y: int, cell_type: CellType) -> None:
         if not self.is_valid_position(x, y):
             raise ValueError(f"Invalid position: ({x}, {y})")
         self.grid[y][x] = cell_type
 
+    # helper method to find a random empty cell for spawning food/traps or placing agents
     def random_empty_cell(self) -> Position:
-        """Pick an empty cell that is not already occupied by an agent."""
         empty_positions: List[Position] = []
         occupied = set(self.agent_positions)
 
@@ -242,12 +237,13 @@ class GridWorld:
 
         return self._rng.choice(empty_positions)
 
+    # helper method to calculate Manhattan distance between two positions
     @staticmethod
     def manhattan_distance(a: Position, b: Position) -> int:
         return abs(a[0] - b[0]) + abs(a[1] - b[1])
 
+    # helper method to render the grid as text for debugging
     def render_grid(self) -> str:
-        """Simple text version of the grid for debugging."""
         agent_by_pos = {agent.position: agent.id for agent in self.agents.values()}
 
         def cell_symbol(x: int, y: int) -> str:
@@ -287,9 +283,11 @@ class GridWorld:
         lines.append(f"Agents: {agent_entries if agent_entries else 'None'}")
         return "\n".join(lines)
 
+    # helper method to print the grid to the terminal
     def print_grid(self) -> None:
         print(self.render_grid())
 
+    # method to get the full state of the environment, including agent states and positions of food/traps
     def get_state(
         self,
         *,
@@ -297,7 +295,6 @@ class GridWorld:
         done: bool = False,
         rewards: Optional[Dict[str, int]] = None,
     ) -> Dict[str, Any]:
-        """Return the whole world state."""
         return {
             "step": self.step_count,
             "max_steps": self.max_steps,
@@ -307,17 +304,14 @@ class GridWorld:
                 {"id": agent_id, "x": agent.x, "y": agent.y}
                 for agent_id, agent in self.agents.items()
             ],
-            "food_positions": self._get_positions_by_cell_type(CellType.FOOD),
-            "trap_positions": self._get_positions_by_cell_type(CellType.TRAP),
+            "food_positions": self.get_positions_by_cell_type(CellType.FOOD),
+            "trap_positions": self.get_positions_by_cell_type(CellType.TRAP),
             "events": events or [],
             "rewards": rewards or {},
         }
 
+    # method to give one agent a simplified view of the world for decision-making (e.g. for Q-learning)
     def get_agent_view(self, agent_id: str, state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """
-        Give one agent a simpler view of the world.
-        This is the piece the Q-learning agent can use.
-        """
         if state is None:
             state = self.get_state()
 
@@ -329,16 +323,16 @@ class GridWorld:
             for aid, agent in self.agents.items()
             if aid != agent_id
         ]
-        nearest_enemy_pos, nearest_enemy_distance = self._nearest_target(
+        nearest_enemy_pos, nearest_enemy_distance = self.get_nearest_target(
             my_pos,
             enemy_positions,
         )
 
-        nearest_food_pos, nearest_food_distance = self._nearest_target(
+        nearest_food_pos, nearest_food_distance = self.get_nearest_target(
             my_pos,
             state["food_positions"],
         )
-        nearest_trap_pos, nearest_trap_distance = self._nearest_target(
+        nearest_trap_pos, nearest_trap_distance = self.get_nearest_target(
             my_pos,
             state["trap_positions"],
         )
@@ -347,17 +341,18 @@ class GridWorld:
             "self_pos": [me.x, me.y],
             "self_health": me.health,
             "self_score": me.score,
-            "nearest_enemy_direction": self._direction_to_target(my_pos, nearest_enemy_pos),
+            "nearest_enemy_direction": self.direction_to_target(my_pos, nearest_enemy_pos),
             "nearest_enemy_distance": nearest_enemy_distance,
-            "nearest_food_direction": self._direction_to_target(my_pos, nearest_food_pos),
+            "nearest_food_direction": self.direction_to_target(my_pos, nearest_food_pos),
             "nearest_food_distance": nearest_food_distance,
-            "nearest_trap_direction": self._direction_to_target(my_pos, nearest_trap_pos),
+            "nearest_trap_direction": self.direction_to_target(my_pos, nearest_trap_pos),
             "nearest_trap_distance": nearest_trap_distance,
             "step": state["step"],
             "done": state["done"],
         }
 
-    def _nearest_target(
+    # function to find nearest target
+    def get_nearest_target(
         self,
         origin: Position,
         positions: List[List[int]],
@@ -372,7 +367,8 @@ class GridWorld:
         )
         return nearest, self.manhattan_distance(origin, nearest)
 
-    def _direction_to_target(
+    # function to get direction to target
+    def direction_to_target(
         self,
         origin: Position,
         target: Optional[Position],
@@ -386,14 +382,14 @@ class GridWorld:
         if dx == 0 and dy == 0:
             return Action.STAY.name
 
-        # If the target is diagonal, move along the axis with larger delta.
         # Ties break horizontally for deterministic behavior.
         if abs(dx) >= abs(dy):
             return Action.RIGHT.name if dx > 0 else Action.LEFT.name
 
         return Action.UP.name if dy > 0 else Action.DOWN.name
 
-    def _get_positions_by_cell_type(self, cell_type: CellType) -> List[List[int]]:
+    # function to get positions by cell type
+    def get_positions_by_cell_type(self, cell_type: CellType) -> List[List[int]]:
         positions: List[List[int]] = []
         for y in range(self.height):
             for x in range(self.width):
@@ -401,13 +397,15 @@ class GridWorld:
                     positions.append([x, y])
         return positions
 
-    def _safe_random_empty_cell(self) -> Optional[Position]:
+    # safe version of random_empty_cell that returns None instead of raising if no empty cells are available
+    def safe_random_empty_cell(self) -> Optional[Position]:
         try:
             return self.random_empty_cell()
         except RuntimeError:
             return None
 
-    def _refresh_agent_positions(self) -> None:
+    # helper method to refresh the list of agent positions after they move
+    def refresh_agent_positions(self) -> None:
         self.agent_positions = [agent.position for agent in self.agents.values()]
 
     def _action_to_delta(self, action: Action | str) -> Position:
@@ -425,7 +423,8 @@ class GridWorld:
             return (1, 0)
         return (0, 0)
 
-    def _propose_moves(
+    # function to propose moves for agents
+    def propose_moves(
         self,
         actions: Dict[str, Action | str],
         current_positions: Dict[str, Position],
@@ -444,7 +443,8 @@ class GridWorld:
 
         return proposed
 
-    def _resolve_moves(
+    # function to resolve moves for agents
+    def resolve_moves(
         self,
         current_positions: Dict[str, Position],
         proposed_moves: Dict[str, Position],

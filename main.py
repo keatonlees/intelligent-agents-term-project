@@ -4,7 +4,7 @@ from typing import Any, Dict, List, Type
 from battle import Action, GridWorld
 from agents.agent_greedy import GreedyAgent
 from agents.agent_q_learning import QLearningAgent
-from agents.agent_random import AgentRandom
+from agents.agent_random import RandomAgent
 from settings import (
     ANIMATE_TERMINAL,
     CLEAR_SCREEN_EACH_FRAME,
@@ -21,7 +21,7 @@ from settings import (
 
 
 AGENT_REGISTRY: Dict[str, Type[Any]] = {
-    "random": AgentRandom,
+    "random": RandomAgent,
     "greedy": GreedyAgent,
     "q_learning": QLearningAgent,
 }
@@ -29,33 +29,34 @@ AGENT_REGISTRY: Dict[str, Type[Any]] = {
 SELECTED_AGENTS = list(DEFAULT_SELECTED_AGENTS)
 
 
-def _action_name(action: Action | str) -> str:
+# utility function returns an action into a printable name
+def get_action_name(action: Action | str) -> str:
     if isinstance(action, Action):
         return action.name
     return str(action).upper()
 
 
-def _format_actions(actions: dict[str, Action | str]) -> str:
-    """Return a compact action string like `a1:RIGHT | a2:UP`."""
+# formats actions into a concise string for display 
+def format_actions(actions: dict[str, Action | str]) -> str:
     return " | ".join(
-        f"{agent_id}:{_action_name(action)}" for agent_id, action in actions.items()
+        f"{agent_id}:{get_action_name(action)}" for agent_id, action in actions.items()
     )
 
 
-def _print_step_header(title: str) -> None:
-    """Print a visual section header for cleaner step separation."""
+# prints a formatted header for each step/frame of the simulation
+def print_step_header(title: str) -> None:
     width = 56
     print("\n" + "=" * width)
     print(title.center(width))
     print("=" * width)
 
 
-def _clear_terminal() -> None:
-    """Clear the terminal and reset cursor to top-left."""
+# clears terminal for next frame
+def clear_terminal() -> None:
     print("\033[2J\033[H", end="")
 
 
-def _render_frame(
+def render_frame(
     title: str,
     env: GridWorld,
     state: dict,
@@ -63,25 +64,24 @@ def _render_frame(
     show_frames: bool,
     animate: bool,
 ) -> None:
-    """Render one frame of the simulation output."""
     if not show_frames:
         return
 
     if animate and CLEAR_SCREEN_EACH_FRAME:
-        _clear_terminal()
+        clear_terminal()
 
-    _print_step_header(title)
+    print_step_header(title)
     env.print_grid()
-    _print_state_summary(state)
+    print_state_summary(state)
 
     if animate:
         time.sleep(FRAME_DELAY_SECONDS)
 
 
-def _distance_shaping_reward(previous_view: dict, next_view: dict) -> float:
-    """Reward moving toward food and away from traps using distance deltas."""
-
-    def _delta(key: str) -> int | None:
+# reward shaping function that provides additional reward based on changes in distance to food and traps
+def distance_shaping_reward(previous_view: dict, next_view: dict) -> float:
+    # calculates difference in distance to food and traps and applies scaling factors
+    def delta(key: str) -> int | None:
         prev = previous_view.get(key)
         nxt = next_view.get(key)
         if prev is None or nxt is None:
@@ -90,11 +90,11 @@ def _distance_shaping_reward(previous_view: dict, next_view: dict) -> float:
 
     shaping = 0.0
 
-    food_delta = _delta("nearest_food_distance")
+    food_delta = delta("nearest_food_distance")
     if food_delta is not None:
         shaping += food_delta * Q_FOOD_DISTANCE_REWARD_SCALE
 
-    trap_delta = _delta("nearest_trap_distance")
+    trap_delta = delta("nearest_trap_distance")
     if trap_delta is not None:
         # Moving away from traps should be positive; toward traps should be negative.
         shaping += (-trap_delta) * Q_TRAP_DISTANCE_REWARD_SCALE
@@ -102,8 +102,8 @@ def _distance_shaping_reward(previous_view: dict, next_view: dict) -> float:
     return shaping
 
 
-def _print_state_summary(state: dict) -> None:
-    """Print a concise and readable summary of environment state."""
+# concise output of current state summary
+def print_state_summary(state: dict) -> None:
     print(f"Step: {state['step']}/{state['max_steps']} | Done: {state['done']}")
     print("Agents:")
     print("  ID   Pos      Health  Score")
@@ -134,14 +134,17 @@ def _print_state_summary(state: dict) -> None:
         print("Events: none")
 
 
-def _build_agent_instances(
+# function to initialize agent instances based on selected agents
+def build_agent_instances(
     selected_agents: List[Dict[str, Any]],
     *,
     q_epsilon_start: float,
     q_epsilon_min: float,
     q_epsilon_decay: float,
+    q_alpha: float | None = None,
+    q_table_path: str = "q_table_iteration_4.json",
+    q_load_existing: bool = True,
 ) -> tuple[List[Any], Dict[str, str]]:
-    """Build and return policy instances and display character map."""
     if not selected_agents:
         raise ValueError("No agents selected.")
 
@@ -166,14 +169,19 @@ def _build_agent_instances(
                 "epsilon": q_epsilon_start,
                 "epsilon_min": q_epsilon_min,
                 "epsilon_decay": q_epsilon_decay,
+                "q_table_path": q_table_path,
+                "load_existing": q_load_existing,
             }
+            if q_alpha is not None:
+                policy_kwargs["alpha"] = q_alpha
         agent_instances.append(policy_cls(agent_id=agent_id, **policy_kwargs))
         display_chars[agent_id] = display_char
 
     return agent_instances, display_chars
 
 
-def _run_episode(
+# function to run one episode of the environment with the given agents and return the final state
+def simulate_episode(
     *,
     agent_instances: List[Any],
     display_chars: Dict[str, str],
@@ -184,8 +192,6 @@ def _run_episode(
     show_frames: bool,
     animate: bool,
 ) -> Dict[str, Any]:
-    """Run one episode and return final environment state."""
-
     agent_ids = [agent.agent_id for agent in agent_instances]
     env = GridWorld(
         width=DEFAULT_GRID_WIDTH,
@@ -198,14 +204,14 @@ def _run_episode(
 
     state = env.get_state()
     prefix = f"EP {episode_index}/{total_episodes} | "
-    _render_frame(
+    render_frame(
         prefix + "AGENTS: " + ", ".join(agent_ids),
         env,
         state,
         show_frames=show_frames,
         animate=animate,
     )
-    _render_frame(
+    render_frame(
         prefix + "INITIAL STATE",
         env,
         state,
@@ -226,7 +232,7 @@ def _run_episode(
             for agent in agent_instances
         }
 
-        frame_title = f"STEP {step_index + 1} | Actions: {_format_actions(actions)}"
+        frame_title = f"STEP {step_index + 1} | Actions: {format_actions(actions)}"
         next_state = env.step(actions)
 
         if enable_q_updates:
@@ -241,12 +247,12 @@ def _run_episode(
                     enable_q_reward_shaping
                     and getattr(agent, "policy_name", "") == "agent_q_learning"
                 ):
-                    reward += _distance_shaping_reward(previous_view, next_view)
-                action_name = _action_name(actions[agent.agent_id])
+                    reward += distance_shaping_reward(previous_view, next_view)
+                action_name = action_name(actions[agent.agent_id])
                 agent.update(previous_view, action_name, reward, next_view)
 
         state = next_state
-        _render_frame(
+        render_frame(
             prefix + frame_title,
             env,
             state,
@@ -267,33 +273,48 @@ def _run_episode(
     return state
 
 
-def run_agents(selected_agents: List[Dict[str, Any]]) -> None:
-    """Run train/eval workflow using the configured mode."""
-    mode = RUN_MODE.strip().lower()
-    if mode not in MODE_PRESETS:
+# main function to run the full training/eval
+def run_agents(
+    selected_agents: List[Dict[str, Any]],
+    *,
+    mode: str | None = None,
+    mode_overrides: Dict[str, Any] | None = None,
+    q_alpha: float | None = None,
+    q_table_path: str = "q_table_iteration_4.json",
+    q_load_existing: bool = True,
+) -> List[Dict[str, int]]:
+    selected_mode = (mode or RUN_MODE).strip().lower()
+    if selected_mode not in MODE_PRESETS:
         raise ValueError(f"RUN_MODE must be one of: {sorted(MODE_PRESETS)}")
 
-    mode_config = MODE_PRESETS[mode]
+    mode_config = dict(MODE_PRESETS[selected_mode])
+    if mode_overrides:
+        mode_config.update(mode_overrides)
+
     episodes = int(mode_config["episodes"])
     show_frames = bool(mode_config["show_frames"])
     animate = ANIMATE_TERMINAL and bool(mode_config["animate_terminal"]) and show_frames
     enable_q_updates = bool(mode_config["enable_q_updates"])
     enable_q_reward_shaping = bool(mode_config["enable_q_reward_shaping"])
 
-    agent_instances, display_chars = _build_agent_instances(
+    agent_instances, display_chars = build_agent_instances(
         selected_agents,
         q_epsilon_start=float(mode_config["q_epsilon_start"]),
         q_epsilon_min=float(mode_config["q_epsilon_min"]),
         q_epsilon_decay=float(mode_config["q_epsilon_decay"]),
+        q_alpha=q_alpha,
+        q_table_path=q_table_path,
+        q_load_existing=q_load_existing,
     )
 
     print(
-        f"Mode={mode} episodes={episodes} steps_per_episode={DEMO_STEPS} "
+        f"Mode={selected_mode} episodes={episodes} steps_per_episode={DEMO_STEPS} "
         f"show_frames={show_frames} animate={animate}"
     )
 
+    episode_scores: List[Dict[str, int]] = []
     for episode_index in range(1, episodes + 1):
-        _run_episode(
+        final_state = simulate_episode(
             agent_instances=agent_instances,
             display_chars=display_chars,
             episode_index=episode_index,
@@ -303,15 +324,22 @@ def run_agents(selected_agents: List[Dict[str, Any]]) -> None:
             show_frames=show_frames,
             animate=animate,
         )
+        episode_scores.append(
+            {
+                agent_id: agent_data["score"]
+                for agent_id, agent_data in final_state.get("agents", {}).items()
+            }
+        )
 
     if bool(mode_config["save_q_table"]):
         for agent in agent_instances:
             if hasattr(agent, "save"):
                 agent.save()
 
+    return episode_scores
+
 
 def main() -> None:
-    """Run the configured set of agent instances."""
     run_agents(SELECTED_AGENTS)
 
 

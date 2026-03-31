@@ -11,17 +11,13 @@ class GreedyAgent:
         self.agent_id = agent_id
         self.name = name
 
+    # choose an action based on the current state, ignoring the step index
     def action_for_step(self, step_index: int, state: Dict[str, Any]) -> str:
         del step_index
         return self.choose_action(state)
 
+    # chooses the action that moves toward the nearest food, while avoiding traps when possible
     def choose_action(self, state):
-        """
-        This agent is simple:
-        - move toward the nearest food direction
-        - avoid stepping toward a trap when it's adjacent
-        """
-
         food_direction = state.get("nearest_food_direction")
         food_distance = state.get("nearest_food_distance")
         trap_direction = state.get("nearest_trap_direction")

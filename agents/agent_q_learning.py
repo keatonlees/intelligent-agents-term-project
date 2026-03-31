@@ -3,7 +3,6 @@ import random
 import os
 from typing import Any, Dict
 
-# simple actions list
 ACTIONS = ["UP", "DOWN", "LEFT", "RIGHT", "STAY"]
 
 
@@ -19,6 +18,8 @@ class QLearningAgent:
         epsilon: float = 0.1,
         epsilon_min: float = 0.05,
         epsilon_decay: float = 0.995,
+        q_table_path: str = "q_table_iteration_4.json",
+        load_existing: bool = True,
     ):
         self.agent_id = agent_id
         self.name = name
@@ -29,15 +30,17 @@ class QLearningAgent:
         self.epsilon = epsilon  # randomness (exploration)
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
+        self.q_table_path = q_table_path
 
         # where we store what it learns
         self.q_table = {}
 
         # load saved learning if it exists
-        if os.path.exists("q_table.json"):
-            with open("q_table.json", "r") as f:
+        if load_existing and os.path.exists(self.q_table_path):
+            with open(self.q_table_path, "r") as f:
                 self.q_table = json.load(f)
 
+    # choose an action based on the current state, ignoring the step index
     def action_for_step(self, step_index: int, state: Dict[str, Any]) -> str:
         del step_index
         return self.choose_action(state)
@@ -81,19 +84,13 @@ class QLearningAgent:
         state_key = self.get_state_key(state)
         next_key = self.get_state_key(next_state)
 
-        # make sure states exist
         if state_key not in self.q_table:
             self.q_table[state_key] = {a: 0 for a in ACTIONS}
         if next_key not in self.q_table:
             self.q_table[next_key] = {a: 0 for a in ACTIONS}
 
-        # current value
         current_q = self.q_table[state_key][action]
-
-        # best future value
         max_future_q = max(self.q_table[next_key].values())
-
-        # Q learning formula (don’t overthink this)
         new_q = current_q + self.alpha * (reward + self.gamma * max_future_q - current_q)
 
         self.q_table[state_key][action] = new_q
@@ -101,5 +98,5 @@ class QLearningAgent:
 
     # save learning to file
     def save(self):
-        with open("q_table.json", "w") as f:
+        with open(self.q_table_path, "w") as f:
             json.dump(self.q_table, f)
