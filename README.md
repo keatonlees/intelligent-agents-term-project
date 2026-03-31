@@ -1,6 +1,6 @@
 # Grid Battle Environment (MVP)
 
-Minimal grid-world environment for agent simulation. This project currently implements only the environment layer (no reinforcement learning, no A* pathfinding).
+Minimal grid-world environment for agent simulation. This project implements a grid-based environment along with multiple agent policies, including a reinforcement learning agent and a rule-based heuristic agent.
 
 ## Assumptions
 
