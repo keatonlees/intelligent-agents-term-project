@@ -1,42 +1,21 @@
-# Grid Battle Environment
+# Grid Battle Environment (MVP)
 
-A lightweight multi-agent grid world for experimenting with policy behavior and Q-learning
+A grid-based environment for simulating and comparing intelligent agent behaviour. The system includes multiple agent policies, including a reinforcement learning agent and a rule-based heuristic agent, operating within a shared environment.
 
-The project supports:
+## Assumptions
 
-- Turn-based movement on a 2D grid
-- Food and trap interactions
-- Multiple policy types (greedy, Q-learning)
-- Evaluation mode with terminal rendering
-
-## Quick Start
-
-### 1. Create and activate a virtual environment
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-```
-
-### 2. Run the game (eval mode)
-
-Set in `settings.py`:
-
-```python
-RUN_MODE = "eval"
-```
-
-Then run:
-
-```bash
-python main.py
-```
-
-What you get:
-
-- A rendered terminal grid each step
-- Agent positions, health, scores, and events
-- No Q-table updates during the run
+- Grid size defaults are defined in `settings.py`.
+- Multi-agent simulation is supported.
+- Each class in `agents/` represents one agent policy instance.
+- Multiple in-game agents are created by selecting multiple agent instances in `main.py`.
+- Agents are tracked separately from grid cells.
+- Cell types are: `EMPTY`, `FOOD`, `TRAP`.
+- Agent actions are: `UP`, `DOWN`, `LEFT`, `RIGHT`, `STAY`.
+- Initial values:
+  - Step penalty: `-1` score per step
+  - Food reward: `+10` score
+  - Trap effect: `-10` health
+  - Agent health starts at `100`
 
 ## Core Rules
 
@@ -76,14 +55,54 @@ Each environment step returns a state dictionary containing:
 - `step`, `max_steps`, `done`
 - `agents` (position, health, score)
 - `agent_positions`
-- `food_positions`, `trap_positions`
-- `events` (such as `food_collected`, `trap_triggered`)
-- `rewards` (per-agent step reward)
+- `food_positions`
+- `trap_positions`
+- `events` (e.g., `food_collected`, `trap_triggered`)
 
-`GridWorld.get_agent_view` returns a compact per-agent observation used by policies:
+### Agent View (policy input)
 
-- self stats: position, health, score
-- nearest enemy direction and distance
-- nearest food direction and distance
-- nearest trap direction and distance
-- step and done flag
+When `main.py` queries `get_agent_view(agent_id, state)`, each agent receives a simplified view of the environment:
+
+- `self_pos`, `self_health`, `self_score`, `step`, `done`
+- `nearest_enemy_direction` and `nearest_enemy_distance`
+- `nearest_food_direction` and `nearest_food_distance`
+- `nearest_trap_direction` and `nearest_trap_distance`
+
+If no enemy exists, `nearest_enemy_direction` and `nearest_enemy_distance` are `None`.
+
+Direction selection uses Manhattan guidance:
+
+- Move along the larger axis delta toward the target.
+- If the target is perfectly diagonal (`|dx| == |dy|`), tie-break horizontally for deterministic behavior.
+
+## Files
+
+- `battle.py`: environment implementation (`GridWorld`, `Agent`, enums, utilities)
+- `settings.py`: centralized simulation constants and defaults
+- `agents/agent_random.py`: single-agent random policy logic (uniform action selection)
+- `main.py`: simulation runner/orchestrator with selectable agent-instance array
+
+### Agent Selection
+
+`main.py` uses `SELECTED_AGENTS` to build in-game agent instances. Each entry supports:
+
+- `policy`: policy key in `AGENT_REGISTRY`
+- `agent_id`: unique in-environment ID
+- `display_char`: single character used on the rendered grid
+
+Default setup runs one `q_learning` agent and one `greedy` agent together.
+Q-learning updates each step using environment rewards and saves learned values to `q_table.json` at the end of the run.
+
+## Runtime Modes
+
+The system supports two modes of operation. Modes are configured in `settings.py`:
+
+- `train`: enables learning, exploration, and Q-table updates
+- `eval`: disables learning and minimizes exploration to evaluate learned behaviour
+
+
+## Run
+
+```bash
+python main.py
+```
