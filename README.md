@@ -83,6 +83,14 @@ Direction selection uses Manhattan guidance:
 Default setup runs one `q_learning` agent and one `greedy` agent together.
 Q-learning updates each step using environment rewards and saves learned values to `q_table.json` at the end of the run.
 
+## Runtime Modes
+
+The system supports two modes of operation:
+
+- `train`: enables learning, exploration, and Q-table updates
+- `eval`: disables learning and minimizes exploration to evaluate learned behaviour
+Modes are configured in `settings.py`
+
 ## Run
 
 ```bash
