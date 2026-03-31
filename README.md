@@ -85,11 +85,11 @@ Q-learning updates each step using environment rewards and saves learned values 
 
 ## Runtime Modes
 
-The system supports two modes of operation:
+The system supports two modes of operation. Modes are configured in `settings.py`:
 
 - `train`: enables learning, exploration, and Q-table updates
 - `eval`: disables learning and minimizes exploration to evaluate learned behaviour
-Modes are configured in `settings.py`
+
 
 ## Run
 
