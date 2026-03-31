@@ -1,6 +1,6 @@
 # Grid Battle Environment (MVP)
 
-Minimal grid-world environment for agent simulation. This project implements a grid-based environment along with multiple agent policies, including a reinforcement learning agent and a rule-based heuristic agent.
+A grid-based environment for simulating and comparing intelligent agent behaviour. The system includes multiple agent policies, including a reinforcement learning agent and a rule-based heuristic agent, operating within a shared environment.
 
 ## Assumptions
 
@@ -45,11 +45,13 @@ Each step returns a state dictionary containing:
 - `step`, `max_steps`, `done`
 - `agents` (position, health, score)
 - `agent_positions`
+- `food_positions`
+- `trap_positions`
 - `events` (e.g., `food_collected`, `trap_triggered`)
 
 ### Agent View (policy input)
 
-When `main.py` queries `get_agent_view(agent_id, state)`, each agent receives:
+When `main.py` queries `get_agent_view(agent_id, state)`, each agent receives a simplified view of the environment:
 
 - `self_pos`, `self_health`, `self_score`, `step`, `done`
 - `nearest_enemy_direction` and `nearest_enemy_distance`
